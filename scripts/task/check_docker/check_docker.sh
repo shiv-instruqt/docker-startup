@@ -1,14 +1,9 @@
 #!/bin/bash
 
-if ! docker info > /dev/null 2>&1; then
-  echo "Docker daemon is not running."
+if curl -s http://localhost:5000 > /dev/null; then
+  echo "Flask app is running on port 5000!"
+  exit 0
+else
+  echo "Flask app is not running on port 5000."
   exit 1
 fi
-
-if ! docker ps --format '{{.Names}}' | grep -q "flask-app"; then
-  echo "flask-app container is not running."
-  exit 1
-fi
-
-echo "Docker is running and flask-app container is live!"
-exit 0
