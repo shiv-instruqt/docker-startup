@@ -21,7 +21,7 @@ resource "vm" "ubuntu" {
     export DEBIAN_FRONTEND=noninteractive
 
     apt-get update -y
-    apt-get install -y ca-certificates curl gnupg lsb-release
+    apt-get install -y ca-certificates curl gnupg lsb-release iptables
 
     mkdir -p /etc/apt/keyrings
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
@@ -32,6 +32,10 @@ resource "vm" "ubuntu" {
 
     apt-get update -y
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+    # Force legacy iptables (nftables not supported on this kernel)
+    update-alternatives --set iptables /usr/sbin/iptables-legacy
+    update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
 
     # Start containerd first
     nohup /usr/bin/containerd > /var/log/containerd.log 2>&1 &
