@@ -1,5 +1,10 @@
+resource "page" "overview" {
+  title = "What's Happening in This Lab"
+  file  = "instructions/overview.md"
+}
+
 resource "page" "verify_docker" {
-  title = "Verify Docker is Running"
+  title = "Verify the Flask App"
   file  = "instructions/verify_docker.md"
 
   activities = {
