@@ -18,7 +18,6 @@ resource "vm" "ubuntu" {
 
   startup_script = <<-EOF
     #!/bin/bash
-    set -e
     export DEBIAN_FRONTEND=noninteractive
 
     apt-get update -y
@@ -34,13 +33,16 @@ resource "vm" "ubuntu" {
     apt-get update -y
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-    # Start Docker daemon directly (bypass systemctl)
     nohup dockerd > /var/log/dockerd.log 2>&1 &
 
-    # Wait for Docker to be ready
+    WAIT=0
     until docker info > /dev/null 2>&1; do
-        echo "Waiting for Docker..."
-        sleep 2
+        sleep 3
+        WAIT=$((WAIT+3))
+        if [ $WAIT -ge 120 ]; then
+            echo "Docker daemon did not start in time"
+            exit 1
+        fi
     done
 
     docker pull shivtushal/git-lab:python-app-1.0
@@ -50,6 +52,8 @@ resource "vm" "ubuntu" {
       --restart unless-stopped \
       -p 5000:5000 \
       shivtushal/git-lab:python-app-1.0
+
+    exit 0
   EOF
 
   port {
