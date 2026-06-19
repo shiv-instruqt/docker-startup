@@ -19,50 +19,48 @@ resource "vm" "ubuntu" {
   startup_script = <<-EOF
     #!/bin/bash
     export DEBIAN_FRONTEND=noninteractive
-
     apt-get update -y
-    apt-get install -y ca-certificates curl gnupg lsb-release iptables
+    apt-get install -y python3 python3-pip python3-venv nano
+    cd /root
+    python3 -m venv .venv
+    /root/.venv/bin/pip install flask requests
+    cat > /root/app.py << 'PYEOF'
+from flask import Flask, jsonify
+import socket
+import requests
 
-    mkdir -p /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-      gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+app = Flask(__name__)
 
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | \
-      tee /etc/apt/sources.list.d/docker.list > /dev/null
+def get_private_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "unavailable"
 
-    apt-get update -y
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+def get_public_ip():
+    try:
+        return requests.get("https://api.ipify.org", timeout=5).text
+    except Exception:
+        return "unavailable"
 
-    # Force legacy iptables
-    update-alternatives --set iptables /usr/sbin/iptables-legacy
-    update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+@app.route("/")
+def index():
+    return f"<h1>Year Converter</h1><p>Private IP: {get_private_ip()}</p>"
 
-    # Start containerd first
-    nohup /usr/bin/containerd > /var/log/containerd.log 2>&1 &
-    sleep 5
+@app.route("/api/server-info")
+def server_info():
+    return jsonify({"private_ip": get_private_ip(), "public_ip": get_public_ip()})
 
-    # Start dockerd with iptables disabled
-    nohup /usr/bin/dockerd --iptables=false > /var/log/dockerd.log 2>&1 &
-
-    WAIT=0
-    until docker info > /dev/null 2>&1; do
-        sleep 3
-        WAIT=$((WAIT+3))
-        if [ $WAIT -ge 120 ]; then
-            echo "Docker daemon did not start in time"
-            cat /var/log/dockerd.log
-            exit 1
-        fi
-    done
-
-    docker pull shivtushal/git-lab:python-app-1.0
-
-    docker run -d \
-      --name flask-app \
-      --restart unless-stopped \
-      --network host \
-      shivtushal/git-lab:python-app-1.0
-
+if __name__ == "__main__":
+    print(f"[Server] Private IP : {get_private_ip()}")
+    print(f"[Server] Public  IP : {get_public_ip()}")
+    app.run(host="0.0.0.0", port=5000)
+PYEOF
+    nohup /root/.venv/bin/python /root/app.py > /var/log/flask-app.log 2>&1 &
     exit 0
   EOF
 
@@ -72,13 +70,5 @@ resource "vm" "ubuntu" {
 
   network {
     id = resource.network.main.meta.id
-  }
-
-  health_check {
-    timeout = "600s"
-
-    tcp {
-      address = "localhost:5000"
-    }
   }
 }
