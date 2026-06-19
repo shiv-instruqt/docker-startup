@@ -1,47 +1,57 @@
-# Getting Started with Docker
+# Run the Flask Application
 
-## Overview
-
-In this lab, you will verify that **Docker** is installed and running, and that your **Flask web application** is live inside a Docker container.
-
-Docker is a platform that lets you package and run applications in isolated containers. Your environment has been pre-configured with:
-
-- Docker installed and running
-- A Flask Python app pulled from Docker Hub (`shivtushal/git-lab:python-app-1.0`)
-- The app running on **port 5000**
+Since Docker is not available in this environment, we will run the Flask application directly using Python.
 
 ---
 
-## Step 1 — Check if Docker is Running
+## Overview
+
+Your environment has been pre-configured with:
+- Python 3 installed
+- Flask and dependencies installed
+- A Flask app running on **port 5000**
+
+---
+
+## Step 1: Verify the Flask App is Running
 
 In the **Terminal** tab, run:
 
 ```bash
-docker ps
+curl http://localhost:5000
 ```
 
-You should see a container named `flask-app` with status **Up**. This confirms Docker is working.
+You should see the **Year Converter** HTML response.
 
 ---
 
-## Step 2 — View the Running App
+## Step 2: Check the API Endpoint
 
-Switch to the **Service** tab to see your Flask app running live in the browser.
+```bash
+curl http://localhost:5000/api/server-info
+```
+
+Expected output:
+
+```json
+{
+  "private_ip": "x.x.x.x",
+  "public_ip": "x.x.x.x"
+}
+```
 
 ---
 
-## Step 3 — Inspect the Container
+## Step 3: View the App in the Browser
 
-Want to know more about the running container? Try:
+Switch to the **Flask_app** tab to see the Year Converter running live.
 
-```bash
-docker inspect flask-app
-```
+---
 
-Or check the app logs:
+## Step 4: Check the App Logs
 
 ```bash
-docker logs flask-app
+cat /var/log/flask-app.log
 ```
 
 ---
