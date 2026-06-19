@@ -33,7 +33,12 @@ resource "vm" "ubuntu" {
     apt-get update -y
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-    nohup dockerd > /var/log/dockerd.log 2>&1 &
+    # Start containerd first
+    nohup /usr/bin/containerd > /var/log/containerd.log 2>&1 &
+    sleep 5
+
+    # Then start dockerd
+    nohup /usr/bin/dockerd > /var/log/dockerd.log 2>&1 &
 
     WAIT=0
     until docker info > /dev/null 2>&1; do
@@ -41,6 +46,7 @@ resource "vm" "ubuntu" {
         WAIT=$((WAIT+3))
         if [ $WAIT -ge 120 ]; then
             echo "Docker daemon did not start in time"
+            cat /var/log/dockerd.log
             exit 1
         fi
     done
