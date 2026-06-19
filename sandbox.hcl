@@ -118,9 +118,6 @@ def get_html():
             box-sizing: border-box;
         }
 
-        /* =====================
-           DARK MODE — Deep Navy Indigo
-        ===================== */
         :root,
         [data-theme="dark"] {
             --bg: #0d1b2a;
@@ -142,9 +139,6 @@ def get_html():
             --star-opacity: 1;
         }
 
-        /* =====================
-           LIGHT MODE — Soft Teal Mint
-        ===================== */
         [data-theme="light"] {
             --bg: #e6f4f1;
             --surface: #d0ece7;
@@ -165,9 +159,6 @@ def get_html():
             --star-opacity: 0;
         }
 
-        /* =====================
-           GLOBAL TRANSITIONS
-        ===================== */
         html {
             transition: background 0.45s ease, color 0.45s ease;
         }
@@ -188,7 +179,6 @@ def get_html():
             overflow-x: hidden;
         }
 
-        /* === BACKGROUND GRID === */
         body::before {
             content: '';
             position: fixed;
@@ -210,7 +200,6 @@ def get_html():
             z-index: 0;
         }
 
-        /* === STARS (hidden in light mode via opacity) === */
         .stars {
             position: fixed;
             inset: 0;
@@ -236,7 +225,6 @@ def get_html():
             50% { opacity: var(--bright, 0.6); transform: scale(1.2); }
         }
 
-        /* === THEME TOGGLE === */
         .theme-toggle {
             position: fixed;
             top: 24px;
@@ -262,7 +250,6 @@ def get_html():
             box-shadow: 0 4px 24px rgba(0,0,0,0.2), 0 0 16px rgba(201,168,76,0.15);
         }
 
-        /* pill track */
         .toggle-track {
             width: 36px;
             height: 20px;
@@ -279,7 +266,6 @@ def get_html():
             border-color: var(--gold);
         }
 
-        /* sliding knob */
         .toggle-knob {
             position: absolute;
             top: 2px;
@@ -311,7 +297,6 @@ def get_html():
             transition: color 0.45s ease;
         }
 
-        /* === LAYOUT === */
         .main-wrap {
             position: relative;
             z-index: 1;
@@ -323,7 +308,6 @@ def get_html():
             padding: 60px 24px 120px;
         }
 
-        /* === HEADER === */
         .site-header {
             text-align: center;
             margin-bottom: 64px;
@@ -372,7 +356,6 @@ def get_html():
             text-transform: uppercase;
         }
 
-        /* === CARD === */
         .card {
             background: var(--glass);
             border: 1px solid var(--border);
@@ -434,7 +417,6 @@ def get_html():
             background: linear-gradient(90deg, var(--gold-dim), transparent);
         }
 
-        /* === FORM === */
         .input-group { margin-bottom: 28px; }
 
         .input-label {
@@ -490,7 +472,6 @@ def get_html():
             box-shadow: 0 0 0 3px rgba(201,168,76,0.08), 0 0 20px rgba(201,168,76,0.1);
         }
 
-        /* === BUTTON === */
         .btn-submit {
             width: 100%;
             background: transparent;
@@ -534,7 +515,6 @@ def get_html():
         .btn-icon { font-size: 14px; transition: transform 0.4s; }
         .btn-submit:hover .btn-icon { transform: rotate(90deg); }
 
-        /* === RESULT BOX === */
         .result-box {
             margin-top: 28px;
             padding: 20px 24px;
@@ -584,7 +564,6 @@ def get_html():
             40% { transform: scale(1); opacity: 1; }
         }
 
-        /* === ORNAMENT === */
         .ornament {
             display: flex;
             align-items: center;
@@ -604,7 +583,6 @@ def get_html():
 
         .ornament::after { background: linear-gradient(90deg, var(--gold-dim), transparent); }
 
-        /* === JENKINS BADGE === */
         .jenkins-badge {
             position: fixed;
             bottom: 28px;
@@ -656,7 +634,6 @@ def get_html():
             letter-spacing: 0.1em;
         }
 
-        /* === ANIMATIONS === */
         @keyframes fadeSlideDown {
             from { opacity: 0; transform: translateY(-30px); }
             to   { opacity: 1; transform: translateY(0); }
@@ -667,7 +644,6 @@ def get_html():
             to   { opacity: 1; transform: translateY(0); }
         }
 
-        /* === GLOW BAND === */
         .glow-band {
             position: fixed;
             bottom: 0; left: 0; right: 0;
@@ -677,7 +653,6 @@ def get_html():
             z-index: 1;
         }
 
-        /* === IP BADGE === */
         .ip-badge {
             position: fixed;
             top: 24px;
@@ -743,7 +718,6 @@ def get_html():
             letter-spacing: 0.05em;
         }
 
-        /* === RESPONSIVE === */
         @media (max-width: 560px) {
             .card { padding: 36px 24px; }
             h1 { font-size: 2.8rem; }
@@ -754,10 +728,8 @@ def get_html():
 </head>
 <body>
 
-<!-- Twinkling stars -->
 <div class="stars" id="stars"></div>
 
-<!-- IP Address Badge -->
 <div class="ip-badge">
     <div class="ip-row">
         <div class="ip-dot private"></div>
@@ -775,7 +747,6 @@ def get_html():
     </div>
 </div>
 
-<!-- Theme Toggle -->
 <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle light/dark mode">
     <div class="toggle-track">
         <div class="toggle-knob"></div>
@@ -821,7 +792,6 @@ def get_html():
     </div>
 </div>
 
-<!-- Jenkins CI/CD Badge -->
 <div class="jenkins-badge">
     <div class="jenkins-dot"></div>
     <div class="jenkins-text">
@@ -833,26 +803,24 @@ def get_html():
 <div class="glow-band"></div>
 
 <script>
-    /* === STAR GENERATOR === */
     (function () {
         const container = document.getElementById('stars');
         for (let i = 0; i < 80; i++) {
             const star = document.createElement('div');
             star.className = 'star';
             star.style.cssText = [
-                `left:${Math.random() * 100}%`,
-                `top:${Math.random() * 100}%`,
-                `--dur:${3 + Math.random() * 5}s`,
-                `--delay:${Math.random() * 6}s`,
-                `--bright:${0.3 + Math.random() * 0.7}`,
-                `width:${1 + Math.random() * 2}px`,
-                `height:${1 + Math.random() * 2}px`
+                'left:' + (Math.random() * 100) + '%',
+                'top:' + (Math.random() * 100) + '%',
+                '--dur:' + (3 + Math.random() * 5) + 's',
+                '--delay:' + (Math.random() * 6) + 's',
+                '--bright:' + (0.3 + Math.random() * 0.7),
+                'width:' + (1 + Math.random() * 2) + 'px',
+                'height:' + (1 + Math.random() * 2) + 'px'
             ].join(';');
             container.appendChild(star);
         }
     })();
 
-    /* === THEME TOGGLE === */
     function toggleTheme() {
         const html = document.documentElement;
         const isDark = html.getAttribute('data-theme') === 'dark';
@@ -863,7 +831,6 @@ def get_html():
         try { localStorage.setItem('theme', next); } catch(e) {}
     }
 
-    /* Restore saved preference on load */
     (function () {
         try {
             const saved = localStorage.getItem('theme');
@@ -875,7 +842,6 @@ def get_html():
         } catch(e) {}
     })();
 
-    /* === YEAR CONVERTER === */
     async function sendData() {
         const year = document.getElementById("year").value.trim();
         const resultBox = document.getElementById("result-box");
@@ -910,7 +876,6 @@ def get_html():
         }
     }
 
-    /* === ENTER KEY === */
     document.getElementById("year").addEventListener("keydown", function (e) {
         if (e.key === "Enter") sendData();
     });
