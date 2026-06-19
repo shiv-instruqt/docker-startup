@@ -1,9 +1,3 @@
-# Run the Flask Application
-
-Since Docker is not available in this environment, we will run the Flask application directly using Python.
-
----
-
 ## Overview
 
 Your environment has been pre-configured with:
