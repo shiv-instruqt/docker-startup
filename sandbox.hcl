@@ -33,7 +33,7 @@ resource "vm" "ubuntu" {
     apt-get update -y
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-    # Force legacy iptables (nftables not supported on this kernel)
+    # Force legacy iptables
     update-alternatives --set iptables /usr/sbin/iptables-legacy
     update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
 
@@ -41,8 +41,8 @@ resource "vm" "ubuntu" {
     nohup /usr/bin/containerd > /var/log/containerd.log 2>&1 &
     sleep 5
 
-    # Then start dockerd
-    nohup /usr/bin/dockerd > /var/log/dockerd.log 2>&1 &
+    # Start dockerd with iptables disabled
+    nohup /usr/bin/dockerd --iptables=false > /var/log/dockerd.log 2>&1 &
 
     WAIT=0
     until docker info > /dev/null 2>&1; do
@@ -60,7 +60,7 @@ resource "vm" "ubuntu" {
     docker run -d \
       --name flask-app \
       --restart unless-stopped \
-      -p 5000:5000 \
+      --network host \
       shivtushal/git-lab:python-app-1.0
 
     exit 0
