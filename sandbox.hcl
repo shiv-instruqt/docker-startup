@@ -2,12 +2,51 @@ resource "network" "main" {
   subnet = "10.0.200.0/24"
 }
 
-resource "container" "ubuntu" {
+resource "vm" "ubuntu" {
   image {
     name = "ubuntu:22.04"
   }
 
-  privileged = true
+  environment = {
+    DEBIAN_FRONTEND = "noninteractive"
+  }
+
+  startup_script = <<-EOF
+    #!/bin/bash
+    set -e
+    export DEBIAN_FRONTEND=noninteractive
+
+    apt-get update -y
+    apt-get install -y ca-certificates curl gnupg lsb-release
+
+    mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+      gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+      https://download.docker.com/linux/ubuntu \
+      $(lsb_release -cs) stable" | \
+      tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    apt-get update -y
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+    systemctl enable docker
+    systemctl start docker
+
+    until docker info > /dev/null 2>&1; do
+        sleep 2
+    done
+
+    docker pull shivtushal/git-lab:python-app-1.0
+
+    docker run -d \
+      --name flask-app \
+      --restart unless-stopped \
+      -p 5000:5000 \
+      shivtushal/git-lab:python-app-1.0
+  EOF
 
   port {
     local = 5000
@@ -15,9 +54,5 @@ resource "container" "ubuntu" {
 
   network {
     id = resource.network.main.meta.id
-  }
-
-  environment = {
-    DEBIAN_FRONTEND = "noninteractive"
   }
 }
