@@ -34,10 +34,12 @@ resource "vm" "ubuntu" {
     apt-get update -y
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-    systemctl enable docker
-    systemctl start docker
+    # Start Docker daemon directly (bypass systemctl)
+    nohup dockerd > /var/log/dockerd.log 2>&1 &
 
+    # Wait for Docker to be ready
     until docker info > /dev/null 2>&1; do
+        echo "Waiting for Docker..."
         sleep 2
     done
 
