@@ -3,7 +3,7 @@ resource "task" "check_docker" {
   success_message = "Great job! Docker is running and your Flask app is live."
 
   config {
-    target = resource.container.ubuntu
+    target = resource.vm.ubuntu
     user   = "root"
   }
 
