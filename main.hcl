@@ -1,6 +1,6 @@
 resource "lab" "main" {
   title       = "Python Flask App Lab"
-  description = "Learn how to run a real Flask application directly using Python"
+  description = "In this lab, you'll interact with a live Flask web app running on an Ubuntu VM. Enter any year to instantly find the nearest leap year — and learn the calendar rules behind it."
   layout      = resource.layout.two_column
 
   content {
@@ -12,6 +12,11 @@ resource "lab" "main" {
         title     = "Instructions"
         reference = resource.page.instructions
       }
+    }
+  }
+  settings {
+    timelimit {
+      duration = "30m"
     }
   }
 }
