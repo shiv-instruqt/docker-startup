@@ -23,11 +23,10 @@ resource "vm" "ubuntu" {
     apt-get install -y python3 python3-pip python3-venv nano
     cd /root
     python3 -m venv .venv
-    /root/.venv/bin/pip install flask requests
+    /root/.venv/bin/pip install flask
     cat > /root/app.py << 'PYEOF'
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import socket
-import urllib.request
 
 app = Flask(__name__)
 
@@ -46,56 +45,106 @@ def get_private_ip():
         return "Unavailable"
 
 
-def get_public_ip():
-    try:
-        with urllib.request.urlopen("https://api.ipify.org", timeout=5) as res:
-            return res.read().decode("utf-8").strip()
-    except Exception:
-        return "Unavailable"
-
-
-# Cache IPs on startup
+# Cache IP on startup
 SERVER_PRIVATE_IP = get_private_ip()
-SERVER_PUBLIC_IP = get_public_ip()
-
 print(f"[Server] Private IP : {SERVER_PRIVATE_IP}")
-print(f"[Server] Public  IP : {SERVER_PUBLIC_IP}")
+
+
+# ==========================================
+# LEAP YEAR LOGIC
+# ==========================================
+
+def is_leap_year(year):
+    return (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
+
+
+def find_nearest_leap_year(year):
+    """Return the nearest leap year to the given year.
+    If equidistant, return both previous and next."""
+    if is_leap_year(year):
+        return {
+            "input_year": year,
+            "is_leap_year": True,
+            "nearest_leap_year": year,
+            "message": f"{year} is already a leap year!"
+        }
+
+    prev = year - 1
+    while not is_leap_year(prev):
+        prev -= 1
+
+    nxt = year + 1
+    while not is_leap_year(nxt):
+        nxt += 1
+
+    dist_prev = year - prev
+    dist_next = nxt - year
+
+    if dist_prev < dist_next:
+        nearest = prev
+        direction = "previous"
+    elif dist_next < dist_prev:
+        nearest = nxt
+        direction = "next"
+    else:
+        return {
+            "input_year": year,
+            "is_leap_year": False,
+            "nearest_leap_year": [prev, nxt],
+            "distance": dist_prev,
+            "message": f"Equidistant! Both {prev} and {nxt} are {dist_prev} year(s) away."
+        }
+
+    return {
+        "input_year": year,
+        "is_leap_year": False,
+        "nearest_leap_year": nearest,
+        "distance": abs(year - nearest),
+        "direction": direction,
+        "message": f"Nearest leap year is {nearest} ({abs(year - nearest)} year(s) {direction})."
+    }
 
 
 # ==========================================
 # API ROUTES
 # ==========================================
 
+@app.route('/api/leap-year', methods=['POST'])
+def leap_year():
+    data = request.get_json(silent=True) or {}
+    raw = data.get("year", "")
+    try:
+        year = int(str(raw).strip())
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid year. Please enter a numeric year."}), 400
+
+    if year < 1 or year > 9999:
+        return jsonify({"error": "Year must be between 1 and 9999."}), 400
+
+    return jsonify(find_nearest_leap_year(year))
+
+
 @app.route('/api/server-info')
 def server_info():
-    return jsonify({
-        "private_ip": SERVER_PRIVATE_IP,
-        "public_ip": SERVER_PUBLIC_IP
-    })
+    return jsonify({"private_ip": SERVER_PRIVATE_IP})
 
 
 # ==========================================
-# HEALTH CHECK ROUTE
+# HEALTH CHECK
 # ==========================================
 
 @app.route('/health')
 def health():
-    return jsonify({
-        "status": "healthy"
-    }), 200
+    return jsonify({"status": "healthy"}), 200
 
 
 # ==========================================
-# MAIN WEBSITE ROUTE
+# MAIN PAGE
 # ==========================================
 
 @app.route('/')
 def home():
-    html = (
-        get_html()
-        .replace('__PRIVATE_IP__', SERVER_PRIVATE_IP)
-        .replace('__PUBLIC_IP__', SERVER_PUBLIC_IP)
-    )
+    html = get_html().replace('__PRIVATE_IP__', SERVER_PRIVATE_IP)
     return html
 
 
@@ -109,17 +158,12 @@ def get_html():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Year Converter</title>
+    <title>Leap Year Finder</title>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
-        *, *::before, *::after {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-        :root,
-        [data-theme="dark"] {
+        :root, [data-theme="dark"] {
             --bg: #0d1b2a;
             --surface: #112236;
             --gold: #f4a738;
@@ -135,7 +179,6 @@ def get_html():
             --card-shadow: 0 40px 80px rgba(5, 15, 30, 0.7);
             --grid-line: rgba(244,167,56,0.05);
             --radial: rgba(100,160,255,0.10);
-            --jenkins-bg: rgba(10, 22, 38, 0.94);
             --star-opacity: 1;
         }
 
@@ -155,20 +198,14 @@ def get_html():
             --card-shadow: 0 40px 80px rgba(10, 80, 70, 0.13);
             --grid-line: rgba(13,148,136,0.07);
             --radial: rgba(13,148,136,0.09);
-            --jenkins-bg: rgba(220, 245, 242, 0.95);
             --star-opacity: 0;
         }
 
-        html {
-            transition: background 0.45s ease, color 0.45s ease;
-        }
+        html { transition: background 0.45s ease, color 0.45s ease; }
 
-        body, .card, input[type="text"], .jenkins-badge, .result-box, .theme-toggle {
-            transition:
-                background 0.45s ease,
-                border-color 0.45s ease,
-                color 0.45s ease,
-                box-shadow 0.45s ease;
+        body, .card, input[type="text"], .result-box, .theme-toggle {
+            transition: background 0.45s ease, border-color 0.45s ease,
+                        color 0.45s ease, box-shadow 0.45s ease;
         }
 
         html, body {
@@ -181,43 +218,30 @@ def get_html():
 
         body::before {
             content: '';
-            position: fixed;
-            inset: 0;
+            position: fixed; inset: 0;
             background-image:
                 linear-gradient(var(--grid-line) 1px, transparent 1px),
                 linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
             background-size: 48px 48px;
-            pointer-events: none;
-            z-index: 0;
+            pointer-events: none; z-index: 0;
         }
 
         body::after {
             content: '';
-            position: fixed;
-            inset: 0;
+            position: fixed; inset: 0;
             background: radial-gradient(ellipse 80% 60% at 50% 10%, var(--radial) 0%, transparent 70%);
-            pointer-events: none;
-            z-index: 0;
+            pointer-events: none; z-index: 0;
         }
 
         .stars {
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            z-index: 0;
-            overflow: hidden;
-            opacity: var(--star-opacity);
-            transition: opacity 0.6s ease;
+            position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden;
+            opacity: var(--star-opacity); transition: opacity 0.6s ease;
         }
 
         .star {
-            position: absolute;
-            width: 2px;
-            height: 2px;
-            border-radius: 50%;
+            position: absolute; width: 2px; height: 2px; border-radius: 50%;
             background: var(--gold-light);
-            animation: twinkle var(--dur, 4s) ease-in-out infinite var(--delay, 0s);
-            opacity: 0;
+            animation: twinkle var(--dur, 4s) ease-in-out infinite var(--delay, 0s); opacity: 0;
         }
 
         @keyframes twinkle {
@@ -226,20 +250,11 @@ def get_html():
         }
 
         .theme-toggle {
-            position: fixed;
-            top: 24px;
-            right: 28px;
-            z-index: 200;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: var(--glass);
-            border: 1px solid var(--border);
-            border-radius: 999px;
-            padding: 8px 14px 8px 10px;
-            cursor: pointer;
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+            position: fixed; top: 24px; right: 28px; z-index: 200;
+            display: flex; align-items: center; gap: 10px;
+            background: var(--glass); border: 1px solid var(--border);
+            border-radius: 999px; padding: 8px 14px 8px 10px;
+            cursor: pointer; backdrop-filter: blur(16px);
             box-shadow: 0 4px 20px rgba(0,0,0,0.15);
             animation: fadeSlideDown 1s cubic-bezier(0.22,1,0.36,1) 0.4s both;
             user-select: none;
@@ -251,252 +266,148 @@ def get_html():
         }
 
         .toggle-track {
-            width: 36px;
-            height: 20px;
-            background: var(--border);
-            border-radius: 999px;
-            position: relative;
-            border: 1px solid var(--border);
-            transition: background 0.4s ease;
-            flex-shrink: 0;
+            width: 36px; height: 20px; background: var(--border);
+            border-radius: 999px; position: relative; border: 1px solid var(--border);
+            transition: background 0.4s ease; flex-shrink: 0;
         }
 
-        [data-theme="light"] .toggle-track {
-            background: var(--gold);
-            border-color: var(--gold);
-        }
+        [data-theme="light"] .toggle-track { background: var(--gold); border-color: var(--gold); }
 
         .toggle-knob {
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background: var(--gold);
+            position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+            border-radius: 50%; background: var(--gold);
             transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1), background 0.4s ease;
         }
 
-        [data-theme="light"] .toggle-knob {
-            transform: translateX(16px);
-            background: #fff;
-        }
+        [data-theme="light"] .toggle-knob { transform: translateX(16px); background: #fff; }
 
         .icon-moon, .icon-sun { font-size: 13px; line-height: 1; }
-        .icon-sun  { display: none; }
+        .icon-sun { display: none; }
         [data-theme="light"] .icon-moon { display: none; }
-        [data-theme="light"] .icon-sun  { display: inline; }
+        [data-theme="light"] .icon-sun { display: inline; }
 
         .toggle-label {
-            font-family: 'DM Mono', monospace;
-            font-size: 9px;
-            letter-spacing: 0.3em;
-            text-transform: uppercase;
-            color: var(--muted);
-            white-space: nowrap;
-            transition: color 0.45s ease;
+            font-family: 'DM Mono', monospace; font-size: 9px;
+            letter-spacing: 0.3em; text-transform: uppercase;
+            color: var(--muted); white-space: nowrap; transition: color 0.45s ease;
         }
 
         .main-wrap {
-            position: relative;
-            z-index: 1;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            position: relative; z-index: 1; min-height: 100vh;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
             padding: 60px 24px 120px;
         }
 
         .site-header {
-            text-align: center;
-            margin-bottom: 64px;
+            text-align: center; margin-bottom: 64px;
             animation: fadeSlideDown 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
         }
 
         .eyebrow {
-            font-family: 'DM Mono', monospace;
-            font-size: 10px;
-            letter-spacing: 0.4em;
-            text-transform: uppercase;
-            color: var(--gold);
-            margin-bottom: 18px;
-            opacity: 0.8;
+            font-family: 'DM Mono', monospace; font-size: 10px;
+            letter-spacing: 0.4em; text-transform: uppercase;
+            color: var(--gold); margin-bottom: 18px; opacity: 0.8;
         }
 
-        .eyebrow::before, .eyebrow::after {
-            content: '—';
-            margin: 0 12px;
-            opacity: 0.5;
-        }
+        .eyebrow::before, .eyebrow::after { content: '—'; margin: 0 12px; opacity: 0.5; }
 
         h1 {
             font-family: 'Playfair Display', serif;
             font-size: clamp(3rem, 8vw, 6rem);
-            font-weight: 900;
-            line-height: 0.95;
-            letter-spacing: -0.02em;
+            font-weight: 900; line-height: 0.95; letter-spacing: -0.02em;
             background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold) 40%, #cde8ff 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 20px;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text; margin-bottom: 20px;
         }
 
         [data-theme="light"] h1 {
             background: linear-gradient(135deg, #b45309 0%, #d97706 45%, #134e4a 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
+            -webkit-background-clip: text; background-clip: text;
         }
 
-        .subtitle {
-            font-size: 12px;
-            letter-spacing: 0.15em;
-            color: var(--muted);
-            text-transform: uppercase;
-        }
+        .subtitle { font-size: 12px; letter-spacing: 0.15em; color: var(--muted); text-transform: uppercase; }
 
         .card {
-            background: var(--glass);
-            border: 1px solid var(--border);
-            border-radius: 2px;
-            padding: 56px 52px;
-            width: 100%;
-            max-width: 520px;
-            position: relative;
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            background: var(--glass); border: 1px solid var(--border);
+            border-radius: 2px; padding: 56px 52px; width: 100%; max-width: 520px;
+            position: relative; backdrop-filter: blur(20px);
             animation: fadeSlideUp 1s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
-            box-shadow:
-                0 0 0 1px rgba(201,168,76,0.05),
-                var(--card-shadow),
-                inset 0 1px 0 rgba(201,168,76,0.12);
+            box-shadow: 0 0 0 1px rgba(201,168,76,0.05), var(--card-shadow), inset 0 1px 0 rgba(201,168,76,0.12);
         }
 
         .card::before, .card::after {
-            content: '';
-            position: absolute;
-            width: 24px;
-            height: 24px;
-            border-color: var(--gold);
-            border-style: solid;
-            opacity: 0.5;
+            content: ''; position: absolute; width: 24px; height: 24px;
+            border-color: var(--gold); border-style: solid; opacity: 0.5;
         }
 
         .card::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
         .card::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
 
         .card-inner-corner-tl, .card-inner-corner-br {
-            position: absolute;
-            width: 24px;
-            height: 24px;
-            border-color: var(--gold);
-            border-style: solid;
-            opacity: 0.5;
+            position: absolute; width: 24px; height: 24px;
+            border-color: var(--gold); border-style: solid; opacity: 0.5;
         }
 
         .card-inner-corner-tl { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
         .card-inner-corner-br { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
 
         .card-label {
-            font-size: 9px;
-            letter-spacing: 0.5em;
-            text-transform: uppercase;
-            color: var(--gold);
-            margin-bottom: 36px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            opacity: 0.7;
+            font-size: 9px; letter-spacing: 0.5em; text-transform: uppercase;
+            color: var(--gold); margin-bottom: 36px;
+            display: flex; align-items: center; gap: 12px; opacity: 0.7;
         }
 
         .card-label::after {
-            content: '';
-            flex: 1;
-            height: 1px;
+            content: ''; flex: 1; height: 1px;
             background: linear-gradient(90deg, var(--gold-dim), transparent);
         }
 
         .input-group { margin-bottom: 28px; }
 
         .input-label {
-            display: block;
-            font-size: 9px;
-            letter-spacing: 0.35em;
-            text-transform: uppercase;
-            color: var(--gold);
-            margin-bottom: 10px;
-            opacity: 0.75;
+            display: block; font-size: 9px; letter-spacing: 0.35em;
+            text-transform: uppercase; color: var(--gold); margin-bottom: 10px; opacity: 0.75;
         }
 
         .input-wrap { position: relative; }
 
         .input-wrap::before {
-            content: '◈';
-            position: absolute;
-            left: 16px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--gold-dim);
-            font-size: 14px;
-            pointer-events: none;
-            transition: color 0.3s;
+            content: '◈'; position: absolute; left: 16px; top: 50%;
+            transform: translateY(-50%); color: var(--gold-dim);
+            font-size: 14px; pointer-events: none; transition: color 0.3s;
         }
 
         .input-wrap:focus-within::before { color: var(--gold); }
 
         input[type="text"] {
-            width: 100%;
-            background: var(--input-bg);
-            border: 1px solid var(--border);
-            border-radius: 1px;
-            padding: 16px 16px 16px 44px;
-            font-family: 'DM Mono', monospace;
-            font-size: 18px;
-            font-weight: 500;
-            color: var(--text);
-            outline: none;
+            width: 100%; background: var(--input-bg); border: 1px solid var(--border);
+            border-radius: 1px; padding: 16px 16px 16px 44px;
+            font-family: 'DM Mono', monospace; font-size: 18px; font-weight: 500;
+            color: var(--text); outline: none;
             transition: border-color 0.3s, box-shadow 0.3s, background 0.45s, color 0.45s;
             letter-spacing: 0.05em;
         }
 
-        input[type="text"]::placeholder {
-            color: var(--muted);
-            font-size: 13px;
-            letter-spacing: 0.1em;
-        }
+        input[type="text"]::placeholder { color: var(--muted); font-size: 13px; letter-spacing: 0.1em; }
 
         input[type="text"]:focus {
-            border-color: var(--gold);
-            background: rgba(201,168,76,0.04);
+            border-color: var(--gold); background: rgba(201,168,76,0.04);
             box-shadow: 0 0 0 3px rgba(201,168,76,0.08), 0 0 20px rgba(201,168,76,0.1);
         }
 
         .btn-submit {
-            width: 100%;
-            background: transparent;
-            border: 1px solid var(--gold);
-            border-radius: 1px;
-            padding: 17px 24px;
-            font-family: 'DM Mono', monospace;
-            font-size: 10px;
-            font-weight: 500;
-            letter-spacing: 0.5em;
-            text-transform: uppercase;
-            color: var(--gold);
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
+            width: 100%; background: transparent; border: 1px solid var(--gold);
+            border-radius: 1px; padding: 17px 24px;
+            font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 500;
+            letter-spacing: 0.5em; text-transform: uppercase; color: var(--gold);
+            cursor: pointer; position: relative; overflow: hidden;
             transition: color 0.4s, box-shadow 0.4s, border-color 0.45s;
         }
 
         .btn-submit::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: var(--gold);
-            transform: translateX(-101%);
-            transition: transform 0.4s cubic-bezier(0.76, 0, 0.24, 1);
+            content: ''; position: absolute; inset: 0; background: var(--gold);
+            transform: translateX(-101%); transition: transform 0.4s cubic-bezier(0.76, 0, 0.24, 1);
         }
 
         .btn-submit:hover { color: var(--bg); box-shadow: 0 0 30px rgba(201,168,76,0.3); }
@@ -504,55 +415,48 @@ def get_html():
         .btn-submit:active { transform: scale(0.98); }
 
         .btn-text {
-            position: relative;
-            z-index: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
+            position: relative; z-index: 1;
+            display: flex; align-items: center; justify-content: center; gap: 12px;
         }
 
         .btn-icon { font-size: 14px; transition: transform 0.4s; }
         .btn-submit:hover .btn-icon { transform: rotate(90deg); }
 
         .result-box {
-            margin-top: 28px;
-            padding: 20px 24px;
-            background: var(--result-bg);
-            border: 1px solid var(--border);
-            border-left: 3px solid var(--gold);
-            border-radius: 1px;
-            font-size: 13px;
-            color: var(--text);
-            line-height: 1.7;
+            margin-top: 28px; padding: 20px 24px;
+            background: var(--result-bg); border: 1px solid var(--border);
+            border-left: 3px solid var(--gold); border-radius: 1px;
+            font-size: 13px; color: var(--text); line-height: 1.7;
             display: none;
             animation: fadeSlideUp 0.5s cubic-bezier(0.22,1,0.36,1) both;
-            word-break: break-all;
         }
 
         .result-box.show { display: block; }
 
         .result-box .result-label {
-            font-size: 9px;
-            letter-spacing: 0.4em;
-            text-transform: uppercase;
-            color: var(--gold);
-            margin-bottom: 10px;
-            opacity: 0.7;
+            font-size: 9px; letter-spacing: 0.4em; text-transform: uppercase;
+            color: var(--gold); margin-bottom: 10px; opacity: 0.7;
         }
 
-        .result-box .result-value {
-            font-size: 15px;
-            font-weight: 500;
-            color: var(--gold);
+        .result-highlight {
+            font-size: 28px; font-family: 'Playfair Display', serif;
+            font-weight: 700; color: var(--gold); display: block;
+            margin: 8px 0 4px;
+        }
+
+        .result-message { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+        .result-badge {
+            display: inline-block; padding: 3px 10px;
+            border: 1px solid var(--gold); border-radius: 999px;
+            font-size: 9px; letter-spacing: 0.3em; text-transform: uppercase;
+            color: var(--gold); margin-top: 10px; opacity: 0.8;
         }
 
         .loading-dots { display: inline-flex; gap: 4px; }
 
         .loading-dots span {
-            width: 4px; height: 4px;
-            border-radius: 50%;
-            background: var(--gold);
+            width: 4px; height: 4px; border-radius: 50%; background: var(--gold);
             animation: dot-pulse 1.4s ease-in-out infinite;
         }
 
@@ -565,73 +469,46 @@ def get_html():
         }
 
         .ornament {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            color: var(--gold-dim);
-            font-size: 14px;
-            margin: 32px 0 0;
-            opacity: 0.5;
+            display: flex; align-items: center; gap: 16px;
+            color: var(--gold-dim); font-size: 14px;
+            margin: 32px 0 0; opacity: 0.5;
         }
 
-        .ornament::before, .ornament::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, var(--gold-dim));
+        .ornament::before, .ornament::after { content: ''; flex: 1; height: 1px; }
+        .ornament::before { background: linear-gradient(90deg, transparent, var(--gold-dim)); }
+        .ornament::after  { background: linear-gradient(90deg, var(--gold-dim), transparent); }
+
+        .ip-badge {
+            position: fixed; top: 24px; left: 28px; z-index: 200;
+            background: var(--glass); border: 1px solid var(--border);
+            border-radius: 2px; padding: 10px 16px;
+            backdrop-filter: blur(16px); box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            animation: fadeSlideDown 1s cubic-bezier(0.22,1,0.36,1) 0.3s both; min-width: 190px;
         }
 
-        .ornament::after { background: linear-gradient(90deg, var(--gold-dim), transparent); }
-
-        .jenkins-badge {
-            position: fixed;
-            bottom: 28px;
-            right: 28px;
-            z-index: 100;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: var(--jenkins-bg);
-            border: 1px solid var(--border);
-            border-radius: 2px;
-            padding: 10px 16px;
-            backdrop-filter: blur(16px);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-            animation: fadeSlideUp 1.2s cubic-bezier(0.22,1,0.36,1) 0.5s both;
-        }
-
-        .jenkins-badge:hover {
+        .ip-badge:hover {
             border-color: var(--gold);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.2), 0 0 20px rgba(201,168,76,0.1);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.2), 0 0 16px rgba(244,167,56,0.12);
         }
 
-        .jenkins-dot {
-            width: 7px; height: 7px;
-            border-radius: 50%;
-            background: #2ecc71;
-            box-shadow: 0 0 8px #2ecc71;
-            flex-shrink: 0;
-            animation: pulse-dot 2s ease-in-out infinite;
+        .ip-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+
+        .ip-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+        .ip-dot.private { background: #38bdf8; box-shadow: 0 0 6px #38bdf8; }
+
+        .ip-info { font-family: 'DM Mono', monospace; }
+
+        .ip-info .ip-type {
+            font-size: 8px; letter-spacing: 0.35em; text-transform: uppercase;
+            color: var(--muted); display: block; line-height: 1; margin-bottom: 2px;
         }
 
-        @keyframes pulse-dot {
-            0%, 100% { box-shadow: 0 0 6px #2ecc71; opacity: 1; }
-            50%       { box-shadow: 0 0 12px #2ecc71, 0 0 20px rgba(46,204,113,0.4); opacity: 0.8; }
-        }
+        .ip-info .ip-value { font-size: 11px; font-weight: 500; color: var(--text); letter-spacing: 0.05em; }
 
-        .jenkins-text {
-            font-family: 'DM Mono', monospace;
-            font-size: 9px;
-            letter-spacing: 0.25em;
-            text-transform: uppercase;
-            color: var(--muted);
-        }
-
-        .jenkins-text strong {
-            display: block;
-            color: var(--text);
-            font-size: 10px;
-            letter-spacing: 0.1em;
+        .glow-band {
+            position: fixed; bottom: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent 0%, var(--gold) 40%, var(--gold-light) 50%, var(--gold) 60%, transparent 100%);
+            opacity: 0.3; z-index: 1;
         }
 
         @keyframes fadeSlideDown {
@@ -642,80 +519,6 @@ def get_html():
         @keyframes fadeSlideUp {
             from { opacity: 0; transform: translateY(24px); }
             to   { opacity: 1; transform: translateY(0); }
-        }
-
-        .glow-band {
-            position: fixed;
-            bottom: 0; left: 0; right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent 0%, var(--gold) 40%, var(--gold-light) 50%, var(--gold) 60%, transparent 100%);
-            opacity: 0.3;
-            z-index: 1;
-        }
-
-        .ip-badge {
-            position: fixed;
-            top: 24px;
-            left: 28px;
-            z-index: 200;
-            background: var(--glass);
-            border: 1px solid var(--border);
-            border-radius: 2px;
-            padding: 10px 16px;
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            animation: fadeSlideDown 1s cubic-bezier(0.22,1,0.36,1) 0.3s both;
-            min-width: 190px;
-        }
-
-        .ip-badge:hover {
-            border-color: var(--gold);
-            box-shadow: 0 4px 24px rgba(0,0,0,0.2), 0 0 16px rgba(244,167,56,0.12);
-        }
-
-        .ip-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 3px 0;
-        }
-
-        .ip-row + .ip-row {
-            margin-top: 6px;
-            padding-top: 6px;
-            border-top: 1px solid var(--border);
-        }
-
-        .ip-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            flex-shrink: 0;
-        }
-
-        .ip-dot.private { background: #38bdf8; box-shadow: 0 0 6px #38bdf8; }
-        .ip-dot.public  { background: #a78bfa; box-shadow: 0 0 6px #a78bfa; }
-
-        .ip-info {
-            font-family: 'DM Mono', monospace;
-        }
-
-        .ip-info .ip-type {
-            font-size: 8px;
-            letter-spacing: 0.35em;
-            text-transform: uppercase;
-            color: var(--muted);
-            display: block;
-            line-height: 1;
-            margin-bottom: 2px;
-        }
-
-        .ip-info .ip-value {
-            font-size: 11px;
-            font-weight: 500;
-            color: var(--text);
-            letter-spacing: 0.05em;
         }
 
         @media (max-width: 560px) {
@@ -738,19 +541,10 @@ def get_html():
             <span class="ip-value">__PRIVATE_IP__</span>
         </div>
     </div>
-    <div class="ip-row">
-        <div class="ip-dot public"></div>
-        <div class="ip-info">
-            <span class="ip-type">Public IP</span>
-            <span class="ip-value" id="public-ip">__PUBLIC_IP__</span>
-        </div>
-    </div>
 </div>
 
 <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle light/dark mode">
-    <div class="toggle-track">
-        <div class="toggle-knob"></div>
-    </div>
+    <div class="toggle-track"><div class="toggle-knob"></div></div>
     <span class="icon-moon">🌙</span>
     <span class="icon-sun">☀️</span>
     <span class="toggle-label" id="toggle-label">Dark</span>
@@ -759,8 +553,8 @@ def get_html():
 <div class="main-wrap">
     <header class="site-header">
         <p class="eyebrow">Temporal Tools</p>
-        <h1>Year<br>Converter</h1>
-        <p class="subtitle">Transform any year across calendars &amp; eras</p>
+        <h1>Leap Year<br>Finder</h1>
+        <p class="subtitle">Discover the nearest leap year to any year</p>
     </header>
 
     <div class="card">
@@ -772,31 +566,23 @@ def get_html():
         <div class="input-group">
             <label class="input-label" for="year">Enter a year</label>
             <div class="input-wrap">
-                <input type="text" id="year" placeholder="e.g. 2024" autocomplete="off" />
+                <input type="text" id="year" placeholder="e.g. 2025" autocomplete="off" />
             </div>
         </div>
 
-        <button class="btn-submit" onclick="sendData()">
+        <button class="btn-submit" onclick="findLeapYear()">
             <span class="btn-text">
-                <span>Convert Year</span>
+                <span>Find Leap Year</span>
                 <span class="btn-icon">✦</span>
             </span>
         </button>
 
         <div class="result-box" id="result-box">
             <p class="result-label">Result</p>
-            <div class="result-value" id="result-value"></div>
+            <div id="result-value"></div>
         </div>
 
         <div class="ornament">◆</div>
-    </div>
-</div>
-
-<div class="jenkins-badge">
-    <div class="jenkins-dot"></div>
-    <div class="jenkins-text">
-        <strong>Jenkins CI/CD</strong>
-        Working
     </div>
 </div>
 
@@ -842,7 +628,7 @@ def get_html():
         } catch(e) {}
     })();
 
-    async function sendData() {
+    async function findLeapYear() {
         const year = document.getElementById("year").value.trim();
         const resultBox = document.getElementById("result-box");
         const resultValue = document.getElementById("result-value");
@@ -857,19 +643,31 @@ def get_html():
         resultValue.innerHTML = '<span class="loading-dots"><span></span><span></span><span></span></span>';
 
         try {
-            const response = await fetch(
-                "https://1gpfd6q15f.execute-api.ap-south-1.amazonaws.com/test/year",
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ year: year })
-                }
-            );
+            const response = await fetch('/api/leap-year', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ year: year })
+            });
 
             const data = await response.json();
-            const formatted = JSON.stringify(data, null, 2)
-                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            resultValue.innerHTML = '<pre style="white-space:pre-wrap;font-size:12px;line-height:1.8">' + formatted + '</pre>';
+
+            if (data.error) {
+                resultValue.innerHTML = '<span style="color:#e05c2a">&#10005; ' + data.error + '</span>';
+                return;
+            }
+
+            const nearest = Array.isArray(data.nearest_leap_year)
+                ? data.nearest_leap_year.join(' &amp; ')
+                : data.nearest_leap_year;
+
+            const badge = data.is_leap_year
+                ? '<span class="result-badge">✓ Leap Year</span>'
+                : '<span class="result-badge">Distance: ' + data.distance + ' yr' + (data.distance !== 1 ? 's' : '') + '</span>';
+
+            resultValue.innerHTML =
+                '<span class="result-highlight">' + nearest + '</span>' +
+                '<div class="result-message">' + data.message + '</div>' +
+                badge;
 
         } catch (err) {
             resultValue.innerHTML = '<span style="color:#e05c2a">&#10005; Error: ' + err.message + '</span>';
@@ -877,7 +675,7 @@ def get_html():
     }
 
     document.getElementById("year").addEventListener("keydown", function (e) {
-        if (e.key === "Enter") sendData();
+        if (e.key === "Enter") findLeapYear();
     });
 </script>
 </body>
