@@ -7,12 +7,10 @@ resource "lab" "main" {
     chapter "getting_started" {
       title = "Getting Started with Flask on Python"
 
-      page "overview" {
-        reference = resource.page.overview
-      }
 
-      page "verify_flask" {
-        reference = resource.page.verify_docker
+      page "instructions" {
+        title     = "Instructions"
+        reference = resource.page.instructions
       }
     }
   }

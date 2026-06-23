@@ -1,7 +1,8 @@
 resource "layout" "two_column" {
   column {
     width = "50"
-    instructions {}
+    instructions {
+    }
   }
 
   column {
